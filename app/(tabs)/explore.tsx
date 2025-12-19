@@ -1,3 +1,4 @@
+/*
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -108,5 +109,111 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     gap: 8,
+  },
+});
+
+
+*/
+
+import { useState } from "react";
+import { View, Button, Alert, StyleSheet, TouchableOpacity } from "react-native";
+import { supabase } from "../../lib/supabase";
+import { useRouter } from "expo-router";
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Fonts } from '@/constants/theme';
+import { Ionicons } from "@expo/vector-icons";
+
+export default function TabTwoScreen() {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      await supabase.auth.signOut();
+      router.push("/(auth)/login"); // Redirect to login after logout
+    } catch (error) {
+      Alert.alert("Error", "Failed to log out: " + error.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <ThemedView style={styles.headerContainer}>
+        <ThemedText type="title" style={styles.headerText}>
+          Explore
+        </ThemedText>
+      </ThemedView>
+
+      {/* Description Text */}
+      <ThemedText style={styles.descriptionText}>
+        This app includes example code to help you get started.
+      </ThemedText>
+
+      {/* Logout Button */}
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} disabled={loading}>
+        <View style={styles.logoutButtonContent}>
+          {loading ? (
+            <ThemedText style={styles.buttonText}>Logging out...</ThemedText>
+          ) : (
+            <>
+              <Ionicons name="log-out-outline" size={20} color="#fff" />
+              <ThemedText style={styles.buttonText}>Log Out</ThemedText>
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#f7f7f7',
+  },
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  headerText: {
+    fontFamily: Fonts.rounded,
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#333',
+  },
+  descriptionText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 40,
+  },
+  logoutButton: {
+    backgroundColor: '#f44336', // Red color
+    borderRadius: 10,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  logoutButtonContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 10,
   },
 });
