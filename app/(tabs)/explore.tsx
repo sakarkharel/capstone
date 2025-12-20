@@ -301,8 +301,116 @@ const styles = StyleSheet.create({
 
 // this one with updated latest 
 
+// import { useState } from "react";
+// import { View, FlatList, TouchableOpacity, Alert, StyleSheet } from "react-native";
+// import { supabase } from "../../lib/supabase";
+// import { useRouter } from "expo-router";
+// import { ThemedText } from "@/components/themed-text";
+// import { Ionicons } from "@expo/vector-icons";
+
+// const menuItems = [
+//   {
+//     id: "logout",
+//     title: "Log Out",
+//     icon: "log-out-outline",
+//     action: "logout",
+//   },
+//   // Future menu items can go here
+//   // {
+//   //   id: "another-feature",
+//   //   title: "Another Feature",
+//   //   icon: "settings-outline",
+//   //   action: "anotherFeatureAction",
+//   // }
+// ];
+
+// export default function Explore() {
+//   const [loading, setLoading] = useState(false);
+//   const router = useRouter();
+
+//   const handleLogout = async () => {
+//     setLoading(true);
+//     try {
+//       await supabase.auth.signOut();
+//       router.push("/(auth)/login"); // Redirect to login after logout
+//     } catch (error) {
+//       Alert.alert("Error", "Failed to log out: " + error.message);
+//     }
+//     setLoading(false);
+//   };
+
+//   // Function to handle menu item actions
+//   const handleMenuAction = (action: string) => {
+//     switch (action) {
+//       case "logout":
+//         handleLogout();
+//         break;
+//       // Handle other actions here in the future
+//       // case "anotherFeatureAction":
+//       //   handleAnotherFeatureAction();
+//       //   break;
+//       default:
+//         break;
+//     }
+//   };
+
+//   const renderItem = ({ item }: { item: { id: string; title: string; icon: string; action: string } }) => (
+//     <TouchableOpacity
+//       style={styles.menuItem}
+//       onPress={() => handleMenuAction(item.action)}
+//       disabled={loading}
+//     >
+//       <Ionicons name={item.icon} size={24} color="#333" />
+//       <ThemedText style={styles.menuItemText}>{item.title}</ThemedText>
+//     </TouchableOpacity>
+//   );
+
+//   return (
+//     <View style={styles.container}>
+//       <FlatList
+//         data={menuItems}
+//         keyExtractor={(item) => item.id}
+//         renderItem={renderItem}
+//         ItemSeparatorComponent={() => <View style={styles.separator} />}
+//       />
+//     </View>
+//   );
+// }
+
+// const styles = StyleSheet.create({
+//   container: {
+//     flex: 1,
+//     backgroundColor: "#fff",
+//     marginTop: 30, // Added margin-top to push the content lower
+//   },
+//   menuItem: {
+//     flexDirection: "row",
+//     alignItems: "center",
+//     paddingVertical: 15,
+//     paddingLeft: 20,
+//   },
+//   menuItemText: {
+//     marginLeft: 10,
+//     fontSize: 18,
+//     fontWeight: "600",
+//     color: "#333",
+//   },
+//   separator: {
+//     height: 1,
+//     backgroundColor: "#ddd",
+//   },
+// });
+
 import { useState } from "react";
-import { View, FlatList, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import {
+  View,
+  FlatList,
+  Pressable,
+  Alert,
+  StyleSheet,
+  SafeAreaView,
+  Platform,
+} from "react-native";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
@@ -315,14 +423,21 @@ const menuItems = [
     icon: "log-out-outline",
     action: "logout",
   },
-  // Future menu items can go here
+  // Future menu items:
   // {
-  //   id: "another-feature",
-  //   title: "Another Feature",
+  //   id: "settings",
+  //   title: "Settings",
   //   icon: "settings-outline",
-  //   action: "anotherFeatureAction",
-  // }
+  //   action: "settings",
+  // },
 ];
+
+type MenuItem = {
+  id: string;
+  title: string;
+  icon: any;
+  action: string;
+};
 
 export default function Explore() {
   const [loading, setLoading] = useState(false);
@@ -332,72 +447,148 @@ export default function Explore() {
     setLoading(true);
     try {
       await supabase.auth.signOut();
-      router.push("/(auth)/login"); // Redirect to login after logout
-    } catch (error) {
-      Alert.alert("Error", "Failed to log out: " + error.message);
+      router.replace("/(auth)/login"); // ✅ better than push for logout
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to log out: " + (error?.message ?? "Unknown error"));
     }
     setLoading(false);
   };
 
-  // Function to handle menu item actions
   const handleMenuAction = (action: string) => {
     switch (action) {
       case "logout":
-        handleLogout();
+        Alert.alert("Log out?", "You will be signed out of your account.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Log Out", style: "destructive", onPress: handleLogout },
+        ]);
         break;
-      // Handle other actions here in the future
-      // case "anotherFeatureAction":
-      //   handleAnotherFeatureAction();
-      //   break;
+
       default:
         break;
     }
   };
 
-  const renderItem = ({ item }: { item: { id: string; title: string; icon: string; action: string } }) => (
-    <TouchableOpacity
-      style={styles.menuItem}
+  const renderItem = ({ item }: { item: MenuItem }) => (
+    <Pressable
+      style={({ pressed }) => [
+        styles.menuItem,
+        pressed && !loading ? styles.menuItemPressed : null,
+        loading ? styles.menuItemDisabled : null,
+      ]}
       onPress={() => handleMenuAction(item.action)}
       disabled={loading}
     >
-      <Ionicons name={item.icon} size={24} color="#333" />
-      <ThemedText style={styles.menuItemText}>{item.title}</ThemedText>
-    </TouchableOpacity>
+      <View style={styles.left}>
+        <View style={styles.iconWrap}>
+          <Ionicons name={item.icon} size={20} color="#1D4ED8" />
+        </View>
+
+        <ThemedText style={styles.menuItemText}>{item.title}</ThemedText>
+      </View>
+
+      <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+    </Pressable>
   );
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={menuItems}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
-    </View>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        {/* top spacing like bookings/index */}
+        <View style={styles.topGap} />
+
+        <ThemedText style={styles.pageTitle}>Explore</ThemedText>
+        <ThemedText style={styles.pageSubTitle}>
+          Account and quick actions
+        </ThemedText>
+
+        <FlatList
+          data={menuItems}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#e5f3fd",
+  },
+
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    marginTop: 30, // Added margin-top to push the content lower
+    paddingHorizontal: 20,
+    backgroundColor: "#e5f3fd",
+    paddingTop: Platform.OS === "android" ? 18 : 6,
   },
+
+  topGap: {
+    height: 8,
+  },
+
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 4,
+  },
+
+  pageSubTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
+    marginBottom: 14,
+  },
+
+  listContent: {
+    paddingBottom: 20,
+  },
+
   menuItem: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 15,
-    paddingLeft: 20,
+    justifyContent: "space-between",
   },
+
+  menuItemPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
+
+  menuItemDisabled: {
+    opacity: 0.6,
+  },
+
+  left: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   menuItemText: {
-    marginLeft: 10,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  separator: {
-    height: 1,
-    backgroundColor: "#ddd",
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
   },
 });
-
