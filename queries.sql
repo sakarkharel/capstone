@@ -539,3 +539,11 @@ with check (
   bucket_id = 'images'
   and owner = auth.uid()
 );
+
+
+-- latitude and longitude added 
+alter table public.listings
+add column if not exists lat double precision;
+
+alter table public.listings
+add column if not exists lng double precision;

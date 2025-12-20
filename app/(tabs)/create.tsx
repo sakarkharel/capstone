@@ -3638,6 +3638,740 @@ export default function CreateListing() {
 // });
 
 
+// import { useMemo, useState } from "react";
+// import {
+//   View,
+//   Text,
+//   TextInput,
+//   Alert,
+//   StyleSheet,
+//   KeyboardAvoidingView,
+//   Platform,
+//   ScrollView,
+//   Image,
+//   Pressable,
+//   SafeAreaView,
+// } from "react-native";
+// import { supabase } from "../../lib/supabase";
+// import * as ImagePicker from "expo-image-picker";
+// import { Picker } from "@react-native-picker/picker";
+
+// // Expo-friendly upload
+// import * as FileSystem from "expo-file-system/legacy";
+// import { decode } from "base64-arraybuffer";
+
+// type RiskLevel = "low" | "medium" | "high";
+
+// type TrustCheckResult = {
+//   level: RiskLevel;
+//   score: number;
+//   reasons: string[];
+// };
+
+// function clamp(n: number, min: number, max: number) {
+//   return Math.max(min, Math.min(max, n));
+// }
+
+// // ---------------- TRUST CHECK ENGINE ----------------
+// function runTrustCheck(params: {
+//   title: string;
+//   description: string;
+//   priceNum: number;
+//   location: string;
+//   listingType: string;
+// }): TrustCheckResult {
+//   const { title, description, priceNum, location, listingType } = params;
+
+//   const text = `${title} ${description} ${location}`.toLowerCase();
+//   const reasons: string[] = [];
+//   let score = 0;
+
+//   // Suspicious keywords
+//   const suspiciousKeywords = [
+//     "advance",
+//     "token",
+//     "urgent",
+//     "whatsapp",
+//     "viber",
+//     "imo",
+//     "dm",
+//     "inbox",
+//     "send money",
+//     "esewa",
+//     "khalti",
+//     "bank",
+//     "deposit",
+//     "guarantee",
+//     "cheap",
+//     "offer",
+//     "hurry",
+//     "limited",
+//     "passport",
+//     "agent",
+//     "urgent xa",
+//     "advance paisa",
+//   ];
+
+//   const keywordHits = suspiciousKeywords.filter((k) => text.includes(k));
+//   if (keywordHits.length > 0) {
+//     score += Math.min(30, keywordHits.length * 8);
+//     reasons.push(`Suspicious words: ${keywordHits.slice(0, 4).join(", ")}`);
+//   }
+
+//   // Phone number detection
+//   const phoneRegex = /(\+?\d{1,3}[\s-]?)?(\d[\s-]?){8,12}/g;
+//   if ((description + " " + location).match(phoneRegex)) {
+//     score += 15;
+//     reasons.push("Contains phone/contact details.");
+//   }
+
+//   // Very short description
+//   if (description.trim().length > 0 && description.trim().length < 25) {
+//     score += 12;
+//     reasons.push("Description is too short or vague.");
+//   }
+
+//   // Price sanity
+//   if (!Number.isFinite(priceNum) || priceNum <= 0) {
+//     score += 25;
+//     reasons.push("Invalid price.");
+//   } else {
+//     const lowRoom = 2500;
+//     const lowFlat = 6000;
+//     const suspiciousLow =
+//       listingType === "flat" ? priceNum < lowFlat : priceNum < lowRoom;
+
+//     if (suspiciousLow) {
+//       score += 25;
+//       reasons.push("Price is unusually low.");
+//     }
+//   }
+
+//   if (!location.trim()) {
+//     score += 8;
+//     reasons.push("Location is missing.");
+//   }
+
+//   score = clamp(score, 0, 100);
+
+//   let level: RiskLevel = "low";
+//   if (score >= 70) level = "high";
+//   else if (score >= 35) level = "medium";
+
+//   if (reasons.length === 0) reasons.push("No obvious risk detected.");
+
+//   return { level, score, reasons };
+// }
+
+// // ---------------- MAIN COMPONENT ----------------
+// export default function CreateListing() {
+//   const [title, setTitle] = useState("");
+//   const [description, setDescription] = useState("");
+//   const [price, setPrice] = useState("");
+//   const [location, setLocation] = useState("");
+//   const [listingType, setListingType] = useState("room");
+//   const [loading, setLoading] = useState(false);
+//   const [imageUri, setImageUri] = useState<string | null>(null);
+
+//   // ✅ Trust check is REQUIRED (user must click)
+//   const [trustResult, setTrustResult] = useState<TrustCheckResult | null>(null);
+//   const [trustCheckedOnce, setTrustCheckedOnce] = useState(false);
+//   const [trustSnapshot, setTrustSnapshot] = useState<string>(""); // snapshot of inputs when check ran
+
+//   const priceNum = useMemo(() => parseInt(price, 10), [price]);
+
+//   const currentSnapshot = useMemo(() => {
+//     return JSON.stringify({
+//       title: title.trim(),
+//       description: description.trim(),
+//       price: price.trim(),
+//       location: location.trim(),
+//       listingType,
+//       imageUri: imageUri ?? null,
+//     });
+//   }, [title, description, price, location, listingType, imageUri]);
+
+//   const runTrustCheckNow = () => {
+//     const result = runTrustCheck({
+//       title,
+//       description,
+//       priceNum,
+//       location,
+//       listingType,
+//     });
+//     setTrustResult(result);
+//     setTrustCheckedOnce(true);
+//     setTrustSnapshot(currentSnapshot);
+//     return result;
+//   };
+
+//   const trustIsFresh = trustCheckedOnce && trustSnapshot === currentSnapshot;
+
+//   // Camera
+//   const pickImageFromCamera = async () => {
+//     const permission = await ImagePicker.requestCameraPermissionsAsync();
+//     if (!permission.granted) {
+//       Alert.alert("Permission needed", "Please allow camera access.");
+//       return;
+//     }
+
+//     const result = await ImagePicker.launchCameraAsync({
+//       allowsEditing: false,
+//       quality: 0.6,
+//     });
+
+//     if (!result.canceled && result.assets?.length) {
+//       setImageUri(result.assets[0].uri);
+//     }
+//   };
+
+//   // Upload image
+//   const uploadImage = async () => {
+//     if (!imageUri) return null;
+
+//     const base64 = await FileSystem.readAsStringAsync(imageUri, {
+//       encoding: "base64",
+//     });
+
+//     const arrayBuffer = decode(base64);
+//     const filePath = `room_images/${Date.now()}.jpg`;
+
+//     const { error } = await supabase.storage
+//       .from("images")
+//       .upload(filePath, arrayBuffer, {
+//         contentType: "image/jpeg",
+//         upsert: false,
+//       });
+
+//     if (error) {
+//       Alert.alert("Upload failed", error.message);
+//       return null;
+//     }
+
+//     return supabase.storage.from("images").getPublicUrl(filePath).data.publicUrl;
+//   };
+
+//   // Create listing
+//   const onCreate = async () => {
+//     const { data: sess } = await supabase.auth.getSession();
+//     if (!sess.session?.user) {
+//       Alert.alert("Not logged in");
+//       return;
+//     }
+
+//     if (!title || !Number.isFinite(priceNum) || priceNum <= 0) {
+//       Alert.alert("Missing", "Title and valid price required.");
+//       return;
+//     }
+
+//     if (!trustCheckedOnce || !trustResult) {
+//       Alert.alert(
+//         "Safety Check Required",
+//         "Please tap “Run Trust Check” before posting."
+//       );
+//       return;
+//     }
+
+//     if (!trustIsFresh) {
+//       Alert.alert(
+//         "Safety Check Outdated",
+//         "You changed some details after the Trust Check. Please run the Trust Check again."
+//       );
+//       return;
+//     }
+
+//     if (trustResult.level === "high" || trustResult.level === "medium") {
+//       const label = trustResult.level === "high" ? "High risk" : "Medium risk";
+//       Alert.alert(
+//         "Listing Blocked",
+//         `${label} detected.\n\nScore: ${trustResult.score}/100\n\nTop reasons:\n- ${trustResult.reasons
+//           .slice(0, 3)
+//           .join("\n- ")}\n\nPlease edit and run Trust Check again.`
+//       );
+//       return;
+//     }
+
+//     setLoading(true);
+
+//     const imageUrl = imageUri ? await uploadImage() : null;
+
+//     const { error } = await supabase.from("listings").insert({
+//       owner_id: sess.session.user.id,
+//       title,
+//       description: description || null,
+//       price_per_month: priceNum,
+//       location: location || null,
+//       type: listingType,
+//       is_active: true,
+//       image_url: imageUrl,
+//     });
+
+//     setLoading(false);
+
+//     if (error) {
+//       Alert.alert("Error", error.message);
+//       return;
+//     }
+
+//     // Reset
+//     setTitle("");
+//     setDescription("");
+//     setPrice("");
+//     setLocation("");
+//     setImageUri(null);
+//     setTrustResult(null);
+//     setTrustCheckedOnce(false);
+//     setTrustSnapshot("");
+
+//     Alert.alert("Success", "Listing posted successfully!");
+//   };
+
+//   const trustColor =
+//     trustResult?.level === "high"
+//       ? "#DC2626"
+//       : trustResult?.level === "medium"
+//       ? "#D97706"
+//       : "#16A34A";
+
+//   const trustLabel =
+//     trustResult?.level === "high"
+//       ? "High Risk"
+//       : trustResult?.level === "medium"
+//       ? "Medium Risk"
+//       : "Low Risk";
+
+//   const canPost =
+//     trustCheckedOnce &&
+//     trustIsFresh &&
+//     !!trustResult &&
+//     trustResult.level === "low" &&
+//     !loading;
+
+//   return (
+//     <SafeAreaView style={styles.safe}>
+//       <KeyboardAvoidingView
+//         style={{ flex: 1 }}
+//         behavior={Platform.OS === "ios" ? "padding" : undefined}
+//       >
+//         <ScrollView
+//           contentContainerStyle={styles.container}
+//           keyboardShouldPersistTaps="handled"
+//         >
+//           <View style={styles.topGap} />
+
+//           <Text style={styles.pageTitle}>Create Listing</Text>
+//           <Text style={styles.pageSubTitle}>
+//             Add clear details and run Trust Check before posting.
+//           </Text>
+
+//           {/* Inputs */}
+//           <TextInput
+//             placeholder="e.g. Single room near city center"
+//             value={title}
+//             onChangeText={setTitle}
+//             style={styles.input}
+//             placeholderTextColor="#6B7280"
+//           />
+
+//           <TextInput
+//             placeholder="Describe the room, facilities, rules..."
+//             value={description}
+//             onChangeText={setDescription}
+//             style={[styles.input, styles.textArea]}
+//             multiline
+//             placeholderTextColor="#6B7280"
+//           />
+
+//           <TextInput
+//             placeholder="e.g. 8000"
+//             keyboardType="number-pad"
+//             value={price}
+//             onChangeText={setPrice}
+//             style={styles.input}
+//             placeholderTextColor="#6B7280"
+//           />
+
+//           <TextInput
+//             placeholder="e.g. Baneshwor, Kathmandu"
+//             value={location}
+//             onChangeText={setLocation}
+//             style={styles.input}
+//             placeholderTextColor="#6B7280"
+//           />
+
+//           {/* Picker */}
+//           <Text style={styles.label}>Listing Type</Text>
+//           <View style={styles.pickerWrap}>
+//             <Picker
+//               selectedValue={listingType}
+//               onValueChange={setListingType}
+//               style={styles.picker}
+//             >
+//               <Picker.Item label="Room" value="room" />
+//               <Picker.Item label="Flat" value="flat" />
+//             </Picker>
+//           </View>
+
+//           {/* Take Picture */}
+//           <Pressable
+//             onPress={pickImageFromCamera}
+//             disabled={loading}
+//             style={({ pressed }) => [
+//               styles.actionBtn,
+//               pressed && !loading ? styles.pressed : null,
+//               loading ? styles.disabled : null,
+//             ]}
+//           >
+//             <Text style={styles.actionBtnText}>
+//               {imageUri ? "Retake Picture" : "Take a Picture"}
+//             </Text>
+//           </Pressable>
+
+//           {/* Preview */}
+//           {imageUri && (
+//             <View style={styles.previewCard}>
+//               <Text style={styles.previewTitle}>Preview</Text>
+//               <Image
+//                 source={{ uri: imageUri }}
+//                 style={styles.previewImage}
+//                 resizeMode="cover"
+//               />
+//             </View>
+//           )}
+
+//           {/* TRUST CHECK PANEL */}
+//           <View style={styles.trustBox}>
+//             <View style={styles.trustHeader}>
+//               <Text style={styles.trustTitle}>Trust & Safety Check</Text>
+
+//               {trustCheckedOnce && trustResult && (
+//                 <View style={[styles.badge, { borderColor: trustColor }]}>
+//                   <Text style={[styles.badgeText, { color: trustColor }]}>
+//                     {trustLabel} • {trustResult.score}/100
+//                   </Text>
+//                 </View>
+//               )}
+//             </View>
+
+//             <Text style={styles.trustHint}>
+//               Required before posting. If you change anything (including photo),
+//               you must run it again.
+//             </Text>
+
+//             <Pressable
+//               onPress={runTrustCheckNow}
+//               disabled={loading}
+//               style={({ pressed }) => [
+//                 styles.secondaryBtn,
+//                 pressed && !loading ? styles.pressed : null,
+//                 loading ? styles.disabled : null,
+//               ]}
+//             >
+//               <Text style={styles.secondaryBtnText}>Run Trust Check</Text>
+//             </Pressable>
+
+//             {trustCheckedOnce && trustResult && (
+//               <View style={{ marginTop: 12 }}>
+//                 {!trustIsFresh && (
+//                   <Text style={styles.outdatedText}>
+//                     ⚠️ Trust Check is outdated. Run it again.
+//                   </Text>
+//                 )}
+
+//                 <Text style={styles.trustSubTitle}>Reasons</Text>
+//                 {trustResult.reasons.slice(0, 5).map((r, idx) => (
+//                   <Text key={idx} style={styles.reasonText}>
+//                     • {r}
+//                   </Text>
+//                 ))}
+
+//                 {(trustResult.level === "high" ||
+//                   trustResult.level === "medium") && (
+//                   <Text style={styles.blockText}>
+//                     ⛔ {trustResult.level === "high" ? "High" : "Medium"} risk
+//                     listings are blocked. Please edit and re-run the check.
+//                   </Text>
+//                 )}
+
+//                 {trustResult.level === "low" && (
+//                   <Text style={styles.okText}>
+//                     ✅ Looks good. You can post this listing.
+//                   </Text>
+//                 )}
+//               </View>
+//             )}
+//           </View>
+
+//           {/* Create */}
+//           <Pressable
+//             onPress={onCreate}
+//             disabled={!canPost}
+//             style={({ pressed }) => [
+//               styles.primaryBtn,
+//               !canPost ? styles.primaryDisabled : null,
+//               pressed && canPost ? styles.pressed : null,
+//             ]}
+//           >
+//             <Text style={styles.primaryBtnText}>
+//               {loading ? "Posting..." : "Create Listing"}
+//             </Text>
+//           </Pressable>
+
+//           {/* Helper text */}
+//           {!trustCheckedOnce && (
+//             <Text style={styles.helperText}>
+//               Run Trust Check to enable posting.
+//             </Text>
+//           )}
+//           {trustCheckedOnce && trustResult?.level === "medium" && (
+//             <Text style={styles.helperText}>
+//               Posting disabled due to Medium Risk. Improve details and run again.
+//             </Text>
+//           )}
+//           {trustCheckedOnce && trustResult?.level === "high" && (
+//             <Text style={styles.helperText}>
+//               Posting disabled due to High Risk.
+//             </Text>
+//           )}
+//           {trustCheckedOnce && !trustIsFresh && (
+//             <Text style={styles.helperText}>
+//               You changed details after checking. Run Trust Check again.
+//             </Text>
+//           )}
+
+//           <View style={{ height: 24 }} />
+//         </ScrollView>
+//       </KeyboardAvoidingView>
+//     </SafeAreaView>
+//   );
+// }
+
+// // ---------------- STYLES ----------------
+// const styles = StyleSheet.create({
+//   safe: {
+//     flex: 1,
+//     backgroundColor: "#e5f3fd",
+//   },
+
+//   container: {
+//     paddingHorizontal: 20,
+//     paddingBottom: 30,
+//     backgroundColor: "#e5f3fd",
+//   },
+
+//   topGap: {
+//     height: Platform.OS === "android" ? 18 : 10,
+//   },
+
+//   pageTitle: {
+//     fontSize: 22,
+//     fontWeight: "900",
+//     color: "#111827",
+//     marginBottom: 4,
+//   },
+
+//   pageSubTitle: {
+//     fontSize: 13,
+//     fontWeight: "700",
+//     color: "#6B7280",
+//     marginBottom: 14,
+//     lineHeight: 18,
+//   },
+
+//   input: {
+//     height: 50,
+//     backgroundColor: "#f5f5f5",
+//     borderRadius: 25,
+//     paddingHorizontal: 20,
+//     fontSize: 16,
+//     borderWidth: 1,
+//     borderColor: "#E5E7EB",
+//     marginBottom: 12,
+//     color: "#111827",
+//   },
+
+//   textArea: {
+//     height: 110,
+//     paddingTop: 14,
+//     paddingBottom: 14,
+//     textAlignVertical: "top",
+//   },
+
+//   label: {
+//     fontSize: 13,
+//     fontWeight: "900",
+//     color: "#111827",
+//     marginBottom: 6,
+//     marginTop: 2,
+//   },
+
+//   pickerWrap: {
+//     borderWidth: 1,
+//     borderColor: "#E5E7EB",
+//     borderRadius: 14,
+//     backgroundColor: "#fff",
+//     overflow: "hidden",
+//     marginBottom: 12,
+//     height: 46,
+//     justifyContent: "center",
+//   },
+
+//   picker: {
+//     height: 46,
+//   },
+
+//   actionBtn: {
+//     backgroundColor: "#111827",
+//     borderRadius: 14,
+//     paddingVertical: 12,
+//     alignItems: "center",
+//     justifyContent: "center",
+//     marginTop: 6,
+//   },
+//   actionBtnText: {
+//     color: "#fff",
+//     fontWeight: "900",
+//     fontSize: 14,
+//   },
+
+//   previewCard: {
+//     marginTop: 12,
+//     backgroundColor: "#fff",
+//     borderWidth: 1,
+//     borderColor: "#E5E7EB",
+//     borderRadius: 14,
+//     padding: 12,
+//   },
+//   previewTitle: {
+//     fontWeight: "900",
+//     color: "#111827",
+//     marginBottom: 8,
+//   },
+//   previewImage: {
+//     width: "100%",
+//     height: 220,
+//     borderRadius: 12,
+//     backgroundColor: "#eee",
+//   },
+
+//   trustBox: {
+//     marginTop: 14,
+//     borderWidth: 1,
+//     borderColor: "#E5E7EB",
+//     borderRadius: 16,
+//     padding: 14,
+//     backgroundColor: "#ffffff",
+//   },
+//   trustHeader: {
+//     flexDirection: "row",
+//     justifyContent: "space-between",
+//     alignItems: "center",
+//     gap: 10,
+//   },
+//   trustTitle: {
+//     fontSize: 16,
+//     fontWeight: "900",
+//     color: "#111827",
+//   },
+//   trustHint: {
+//     marginTop: 6,
+//     color: "#6B7280",
+//     fontSize: 13,
+//     lineHeight: 18,
+//   },
+
+//   badge: {
+//     borderWidth: 1,
+//     borderRadius: 999,
+//     paddingHorizontal: 10,
+//     paddingVertical: 4,
+//     backgroundColor: "#fff",
+//   },
+//   badgeText: {
+//     fontSize: 12,
+//     fontWeight: "900",
+//   },
+
+//   secondaryBtn: {
+//     marginTop: 10,
+//     backgroundColor: "#EFF6FF",
+//     borderWidth: 1,
+//     borderColor: "#BFDBFE",
+//     borderRadius: 14,
+//     paddingVertical: 12,
+//     alignItems: "center",
+//     justifyContent: "center",
+//   },
+//   secondaryBtnText: {
+//     color: "#1D4ED8",
+//     fontWeight: "900",
+//     fontSize: 14,
+//   },
+
+//   trustSubTitle: {
+//     fontWeight: "900",
+//     marginBottom: 6,
+//     color: "#111827",
+//   },
+//   reasonText: {
+//     color: "#374151",
+//     marginBottom: 4,
+//     lineHeight: 18,
+//     fontWeight: "600",
+//   },
+//   outdatedText: {
+//     marginBottom: 8,
+//     color: "#D97706",
+//     fontWeight: "900",
+//   },
+//   blockText: {
+//     marginTop: 8,
+//     color: "#DC2626",
+//     fontWeight: "900",
+//   },
+//   okText: {
+//     marginTop: 8,
+//     color: "#16A34A",
+//     fontWeight: "900",
+//   },
+
+//   primaryBtn: {
+//     marginTop: 14,
+//     backgroundColor: "#1D4ED8",
+//     borderRadius: 14,
+//     paddingVertical: 14,
+//     alignItems: "center",
+//     justifyContent: "center",
+//   },
+//   primaryDisabled: {
+//     backgroundColor: "#9CA3AF",
+//   },
+//   primaryBtnText: {
+//     color: "#fff",
+//     fontWeight: "900",
+//     fontSize: 15,
+//   },
+
+//   helperText: {
+//     marginTop: 10,
+//     color: "#6B7280",
+//     fontSize: 13,
+//     fontWeight: "700",
+//   },
+
+//   pressed: {
+//     opacity: 0.9,
+//     transform: [{ scale: 0.99 }],
+//   },
+
+//   disabled: {
+//     opacity: 0.6,
+//   },
+// });
+
+
+// Mathiko majjale kam garcha tara tala ko ma lattitude and longitude cha 
+
 import { useMemo, useState } from "react";
 import {
   View,
@@ -3651,6 +4385,7 @@ import {
   Image,
   Pressable,
   SafeAreaView,
+  StatusBar,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 import * as ImagePicker from "expo-image-picker";
@@ -3686,7 +4421,6 @@ function runTrustCheck(params: {
   const reasons: string[] = [];
   let score = 0;
 
-  // Suspicious keywords
   const suspiciousKeywords = [
     "advance",
     "token",
@@ -3718,20 +4452,17 @@ function runTrustCheck(params: {
     reasons.push(`Suspicious words: ${keywordHits.slice(0, 4).join(", ")}`);
   }
 
-  // Phone number detection
   const phoneRegex = /(\+?\d{1,3}[\s-]?)?(\d[\s-]?){8,12}/g;
   if ((description + " " + location).match(phoneRegex)) {
     score += 15;
     reasons.push("Contains phone/contact details.");
   }
 
-  // Very short description
   if (description.trim().length > 0 && description.trim().length < 25) {
     score += 12;
     reasons.push("Description is too short or vague.");
   }
 
-  // Price sanity
   if (!Number.isFinite(priceNum) || priceNum <= 0) {
     score += 25;
     reasons.push("Invalid price.");
@@ -3769,16 +4500,23 @@ export default function CreateListing() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
+
+  // ✅ Latitude/Longitude inputs
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+
   const [listingType, setListingType] = useState("room");
   const [loading, setLoading] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
 
-  // ✅ Trust check is REQUIRED (user must click)
+  // ✅ Trust check is REQUIRED
   const [trustResult, setTrustResult] = useState<TrustCheckResult | null>(null);
   const [trustCheckedOnce, setTrustCheckedOnce] = useState(false);
-  const [trustSnapshot, setTrustSnapshot] = useState<string>(""); // snapshot of inputs when check ran
+  const [trustSnapshot, setTrustSnapshot] = useState<string>("");
 
   const priceNum = useMemo(() => parseInt(price, 10), [price]);
+  const latNum = useMemo(() => Number(latitude), [latitude]);
+  const lngNum = useMemo(() => Number(longitude), [longitude]);
 
   const currentSnapshot = useMemo(() => {
     return JSON.stringify({
@@ -3788,8 +4526,10 @@ export default function CreateListing() {
       location: location.trim(),
       listingType,
       imageUri: imageUri ?? null,
+      latitude: latitude.trim(),
+      longitude: longitude.trim(),
     });
-  }, [title, description, price, location, listingType, imageUri]);
+  }, [title, description, price, location, listingType, imageUri, latitude, longitude]);
 
   const runTrustCheckNow = () => {
     const result = runTrustCheck({
@@ -3806,6 +4546,39 @@ export default function CreateListing() {
   };
 
   const trustIsFresh = trustCheckedOnce && trustSnapshot === currentSnapshot;
+
+  const isLatLngProvided = latitude.trim() !== "" || longitude.trim() !== "";
+
+  const clearLatLng = () => {
+    setLatitude("");
+    setLongitude("");
+  };
+
+  const validateLatLng = () => {
+    if (!isLatLngProvided) return true;
+
+    if (latitude.trim() === "" || longitude.trim() === "") {
+      Alert.alert("Pinpoint missing", "Please enter both latitude and longitude.");
+      return false;
+    }
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      Alert.alert("Invalid coordinates", "Latitude/Longitude must be valid numbers.");
+      return false;
+    }
+
+    if (latNum < -90 || latNum > 90) {
+      Alert.alert("Invalid latitude", "Latitude must be between -90 and 90.");
+      return false;
+    }
+
+    if (lngNum < -180 || lngNum > 180) {
+      Alert.alert("Invalid longitude", "Longitude must be between -180 and 180.");
+      return false;
+    }
+
+    return true;
+  };
 
   // Camera
   const pickImageFromCamera = async () => {
@@ -3864,11 +4637,11 @@ export default function CreateListing() {
       return;
     }
 
+    // ✅ validate coords
+    if (!validateLatLng()) return;
+
     if (!trustCheckedOnce || !trustResult) {
-      Alert.alert(
-        "Safety Check Required",
-        "Please tap “Run Trust Check” before posting."
-      );
+      Alert.alert("Safety Check Required", "Please tap “Run Trust Check” before posting.");
       return;
     }
 
@@ -3895,7 +4668,7 @@ export default function CreateListing() {
 
     const imageUrl = imageUri ? await uploadImage() : null;
 
-    const { error } = await supabase.from("listings").insert({
+    const payload: any = {
       owner_id: sess.session.user.id,
       title,
       description: description || null,
@@ -3904,7 +4677,15 @@ export default function CreateListing() {
       type: listingType,
       is_active: true,
       image_url: imageUrl,
-    });
+    };
+
+    // ✅ save coords only if both provided
+    if (latitude.trim() && longitude.trim()) {
+      payload.lat = Number(latitude);
+      payload.lng = Number(longitude);
+    }
+
+    const { error } = await supabase.from("listings").insert(payload);
 
     setLoading(false);
 
@@ -3919,6 +4700,8 @@ export default function CreateListing() {
     setPrice("");
     setLocation("");
     setImageUri(null);
+    setLatitude("");
+    setLongitude("");
     setTrustResult(null);
     setTrustCheckedOnce(false);
     setTrustSnapshot("");
@@ -3947,8 +4730,11 @@ export default function CreateListing() {
     trustResult.level === "low" &&
     !loading;
 
+  // ✅ FIX: add safe top padding (Android status bar)
+  const safeTop = Platform.OS === "android" ? (StatusBar.currentHeight ?? 18) : 0;
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { paddingTop: safeTop }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -3957,7 +4743,8 @@ export default function CreateListing() {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.topGap} />
+          {/* extra breathing room */}
+          <View style={{ height: 10 }} />
 
           <Text style={styles.pageTitle}>Create Listing</Text>
           <Text style={styles.pageSubTitle}>
@@ -3998,6 +4785,48 @@ export default function CreateListing() {
             style={styles.input}
             placeholderTextColor="#6B7280"
           />
+
+          {/* ✅ NEW: Pinpoint Coordinates */}
+          <Text style={styles.label}>Pinpoint Location (Optional)</Text>
+
+          <View style={styles.latLngRow}>
+            <TextInput
+              placeholder="Latitude (e.g. 27.7172)"
+              value={latitude}
+              onChangeText={setLatitude}
+              style={[styles.input, styles.latLngInput]}
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+            />
+            <TextInput
+              placeholder="Longitude (e.g. 85.3240)"
+              value={longitude}
+              onChangeText={setLongitude}
+              style={[styles.input, styles.latLngInput]}
+              placeholderTextColor="#6B7280"
+              keyboardType="decimal-pad"
+            />
+          </View>
+
+          <View style={styles.latLngBtnRow}>
+            <Pressable
+              onPress={clearLatLng}
+              disabled={loading || (!latitude && !longitude)}
+              style={({ pressed }) => [
+                styles.smallBtn,
+                styles.smallBtnDark,
+                pressed && !loading ? styles.pressed : null,
+                loading ? styles.disabled : null,
+                !latitude && !longitude ? styles.disabled : null,
+              ]}
+            >
+              <Text style={styles.smallBtnText}>Clear</Text>
+            </Pressable>
+
+            <Text style={styles.latLngHint}>
+              Tip: Copy lat/lng from Google Maps and paste here.
+            </Text>
+          </View>
 
           {/* Picker */}
           <Text style={styles.label}>Listing Type</Text>
@@ -4085,11 +4914,10 @@ export default function CreateListing() {
                   </Text>
                 ))}
 
-                {(trustResult.level === "high" ||
-                  trustResult.level === "medium") && (
+                {(trustResult.level === "high" || trustResult.level === "medium") && (
                   <Text style={styles.blockText}>
-                    ⛔ {trustResult.level === "high" ? "High" : "Medium"} risk
-                    listings are blocked. Please edit and re-run the check.
+                    ⛔ {trustResult.level === "high" ? "High" : "Medium"} risk listings are blocked.
+                    Please edit and re-run the check.
                   </Text>
                 )}
 
@@ -4117,11 +4945,8 @@ export default function CreateListing() {
             </Text>
           </Pressable>
 
-          {/* Helper text */}
           {!trustCheckedOnce && (
-            <Text style={styles.helperText}>
-              Run Trust Check to enable posting.
-            </Text>
+            <Text style={styles.helperText}>Run Trust Check to enable posting.</Text>
           )}
           {trustCheckedOnce && trustResult?.level === "medium" && (
             <Text style={styles.helperText}>
@@ -4129,9 +4954,7 @@ export default function CreateListing() {
             </Text>
           )}
           {trustCheckedOnce && trustResult?.level === "high" && (
-            <Text style={styles.helperText}>
-              Posting disabled due to High Risk.
-            </Text>
+            <Text style={styles.helperText}>Posting disabled due to High Risk.</Text>
           )}
           {trustCheckedOnce && !trustIsFresh && (
             <Text style={styles.helperText}>
@@ -4157,10 +4980,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 30,
     backgroundColor: "#e5f3fd",
-  },
-
-  topGap: {
-    height: Platform.OS === "android" ? 18 : 10,
   },
 
   pageTitle: {
@@ -4203,6 +5022,42 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 6,
     marginTop: 2,
+  },
+
+  latLngRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  latLngInput: {
+    flex: 1,
+  },
+  latLngBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: -4,
+    marginBottom: 10,
+  },
+  latLngHint: {
+    flex: 1,
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "700",
+  },
+  smallBtn: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallBtnDark: {
+    backgroundColor: "#111827",
+  },
+  smallBtnText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 12,
   },
 
   pickerWrap: {
